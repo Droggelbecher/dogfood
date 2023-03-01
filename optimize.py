@@ -1,7 +1,8 @@
 
 
 import numpy as np
-from scipy.optimize import minimize, LinearConstraint, linprog
+from pulp import *
+from more_itertools import one
 
 values_names = [
     "Menge [g]",
@@ -18,38 +19,42 @@ values_names = [
 ]
 
 values_targets = np.array([
+    #   g,kcal, Pr,      Ca,   P,   Cu,  Zn, Jod, A,   D,   E
     603, 1019.87, 52.21, 2110.5, 1608, 3.015, 30.15, 442.2, 1708.5, 201, 40.2
 ])
 values_upper_bound_factors = np.array([
-    1.5, 1.0, 2.5, 2, 2, 999., 10., 2.0, 7.0, 10.0, 3.0
+    # g,kcal,  Pr,Ca, P,   Cu,  Zn, Jod, A,   D,   E
+    2.0, 1.0, 2.5, 2, 2, 999., 10., 2.0, 7.0, 10.0, 3.0
 ])
 assert values_upper_bound_factors.shape == values_targets.shape
 
 ingredients_names = [
-    "Rind, Muskel fettfrei",
-    "Rind, Beinscheibe",
-    "Rind, Herz",
-    "Rind, Kopffleisch",
-    "Rind, Pansen grün",
-    "Rind, Blättermagen",
-    "Kalb, Niere",
-    "Huhn, Fleisch",
+    "Rind_Muskel_fettfrei",
+    "Rind_Beinscheibe",
+    "Rind_Herz",
+    "Rind_Kopffleisch",
+    "Rind_Pansen_grün",
+    "Rind_Blättermagen",
+    "Kalb_Niere",
+    "Huhn_Fleisch",
     "Hühnerhälse",
     "Apfel",
     "Banane",
     "Möhre",
     "Leinöl",
     "Lachsöl",
-    "Kartoffel, gekocht",
+    "Kartoffel_gekocht",
     "Dinkelvollkornmehl",
     "Reis",
     "Kalbsleber",
     "Kalbsknochen",
     "Knochenmehl",
-    "Dorsch-Lebertran",
+    "Dorschlebertran",
     "Weizenkeimöl",
-    "Seealgen-Mehl",
+    "Seealgenmehl",
     "Eierschale",
+    "Zink_Tabletten",
+    "Kupfer_Tabletten",
 ]
 
 ingredients_values = np.array([
@@ -80,65 +85,115 @@ ingredients_values = np.array([
     [1.,   8,  0,    0,    0, 0.00, 0.0,   0,   0,  0.0,    2],
     [1.,   3,  0,    0,    0, 0.00, 0.0, 400,   0,  0.0,    0],
     [1.,   0,  0,  330,    0, 0.00, 0.0,   0,   0,  0.0,    0],
+    [1.,   0,  0,    0,    0, 0.00, 1000.0,   0,   0,  0.0,    0],
+    [1.,   0,  0,    0,    0, 1000.00, 0.0,   0,   0,  0.0,    0],
 ], dtype=np.float64)
 
-ingredients_values_normalized = ingredients_values / values_targets
+#
+# Input normalization
+#
 
+# Convert to per gram
+ingredients_values[:, :] /= ingredients_values[:, :1]
+# print(ingredients_values)
+
+# Normalize to be relative to targets
+ingredients_values_normalized = ingredients_values / values_targets
 n_ingredients, n_values = ingredients_values_normalized.shape
 
-# TODO:
-# Compute bounds & matrices for scipy.optimize.linprog
-# ingredients_values_normalized @ x -> Lower bound of 1.0 (=negative upper bound)
-# ingredients_values_normalized @ x -> Upper bound of some integer factors from the book
-# equality bounds for fixing some parameters to zero if desired
+model = LpProblem("BARF Problem", LpMinimize)
+ingredient_g_vars = LpVariable.matrix("g", ingredients_names, cat="Continuous", lowBound=0)
 
-#     Ax >= b
-# <=> (-A)x <= -b
+def get_index(name):
+    return ingredients_names.index(name)
 
-A_ub = np.concatenate([
-    -ingredients_values_normalized,
-    ingredients_values_normalized,
-], axis=1)
-b_ub = np.concatenate([
-    -np.ones((n_values,)),
-    values_upper_bound_factors
-])
+def get_variable(name):
+    return one(v for v in model.variables() if v.name == "g_" + name)
 
-# "Cost" of ingredients, we want to minimize.
-c = np.ones((n_ingredients * 2,))
+#
+#
+#
 
-# We receive the ingredients amounts 'x' twice
-# (so we can apply both lower and upper bounds to it)
-# This ensures these x's are the same
-A_eq = np.concatenate([
-    np.eye(n_ingredients),
-    -np.eye(n_ingredients),
-])
-b_eq = np.zeros((n_ingredients,))
+# Barfers Wellfood "Komplett-Mix Rind"
+# https://www.barfers-wellfood.de/barf-shop/fertigbarf/barfers-complete/komplett-mix-gewolft
 
-# ingredients_bounds = [
-    # (0., None)
-# ] * len(ingredients_names)
+# g = np.zeros((n_ingredients,))
+# g_day = values_targets[0]
 
-# def loss(amounts):
-    # normalized_values = amounts.reshape((1, -1)) @ ingredients_values_normalized
-    # # return np.sum((normalized_values - np.ones_like(normalized_values)) ** 2)
+# g[get_index("Rind_Muskel_fettfrei")] = 0.551 * g_day
+# g[get_index("Rinderbrustbein")] = 0.118 * g_day
+# g[get_index("Süßkartoffel")] = 0.111 * g_day
+# g[get_index("Rinderleber")] = 0.047 * g_day
+# g[get_index("Spinat")] = 0.037 * g_day
+# g[get_index("Heidelbeere")] = 0.020 * g_day
+# g[get_index("Rinderherz")] = 0.018 * g_day
+# g[get_index("Rinderlunge")] = 0.018 * g_day
+# g[get_index("Rindermilz")] = 0.018 * g_day
+# g[get_index("Rinderniere")] = 0.018 * g_day
+# g[get_index("Apfel")] = 0.015 * g_day
+# g[get_index("Birne")] = 0.015 * g_day
+# g[get_index("Leinöl")] = 0.004 * g_day
+# g[get_index("Dorschlebertran")] = 0.003 * g_day
+# g[get_index("Algenkalk")] = 0.003 * g_day
+# g[get_index("Lachsöl")] = 0.003 * g_day
+# g[get_index("Kokosraspeln")] = 0.003 * g_day
+# g[get_index("Seealgenmehl")] = 0.001 * g_day
 
-    # loss = np.sum(np.abs(normalized_values - np.ones_like(normalized_values)))
-    # return loss
 
-# x0 = np.array([0.0] * len(ingredients_names))
+# Simply minimize sum of g
+objective = lpSum(ingredient_g_vars)
+model += objective
 
-r = linprog(c, A_ub=A_ub.T, b_ub=b_ub)
-print(r)
+#
+# Constraints
+#
 
-rxr = r.x.ravel()[:n_ingredients]
+for expr, ub in zip(ingredients_values_normalized.T @ ingredient_g_vars,
+                    values_upper_bound_factors, strict=True):
+    model += expr >= 1.0
+    model += expr <= ub
 
-print()
-for name, x, row in zip(ingredients_names, rx, ingredients_values, strict=True):
-    amount = x * row[0]
-    print(f"{amount:6.2f}g {name}")
-print()
+# Additional constraints
+
+# model += get_variable("Rind_Muskel_fettfrei") >= 100.
+# model += get_variable("Dinkelvollkornmehl") == 0.
+model += get_variable("Huhn_Fleisch") == 0.
+model += get_variable("Hühnerhälse") == 0.
+# model += get_variable("Apfel") >= 50.
+
+model += get_variable("Kalbsknochen") >= 0.02 * values_targets[0]
+model += get_variable("Kalbsleber") >= 0.05 * values_targets[0]
+model += get_variable("Dorschlebertran") >= 0.006 * values_targets[0]
+model += get_variable("Seealgenmehl") >= 0.001 * values_targets[0]
+
+#
+# Optimize
+#
+
+print(model)
+model.writeLP("barf.lp")
+
+model.solve()
+status = LpStatus[model.status]
+
+#
+# Output optimization results
+#
+
+print("Status", status)
+print("Objective Value:", model.objective.value())
+
+variables = [
+    one(v for v in model.variables() if v.name == "g_" + name)
+    for name in ingredients_names
+]
+
+for v, row in zip(variables, ingredients_values):
+    if v.value() == 0.0:
+        continue
+    print(f"{v.value() * row[0]:8.4f} {v.name}")
+
+rx = np.array([v.value() for v in variables])
 
 r_absolute = (rx.reshape((1, -1)) @ ingredients_values).ravel()
 r_normalized = (rx.reshape((1, -1)) @ ingredients_values_normalized).ravel()
