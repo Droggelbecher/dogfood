@@ -31,7 +31,7 @@ assert values_upper_bound_factors.shape == values_targets.shape
 ingredients_names = [
     "Rind_Muskel_fettfrei",
     "Rind_Beinscheibe",
-    "Rind_Herz",
+    "Rinderherz",
     "Rind_Kopffleisch",
     "Rind_Pansen_grün",
     "Rind_Blättermagen",
@@ -43,7 +43,7 @@ ingredients_names = [
     "Möhre",
     "Leinöl",
     "Lachsöl",
-    "Kartoffel_gekocht",
+    "Kartoffel",  # gekocht
     "Dinkelvollkornmehl",
     "Reis",
     "Kalbsleber",
@@ -55,6 +55,12 @@ ingredients_names = [
     "Eierschale",
     "Zink_Tabletten",
     "Kupfer_Tabletten",
+    "Rinderleber",
+    "Rinderlunge",
+    "Rinderniere",
+    "Rindermilz",
+    "Rote_Beete",
+    "Pastinake",
 ]
 
 ingredients_values = np.array([
@@ -83,10 +89,26 @@ ingredients_values = np.array([
     [1.,   0,  0,  300,  150, 0.00, 0.0,   0,   0,  0.0,    0],
     [1.,   9,  0,    0,    0, 0.00, 0.0,   0, 400, 40.0, 0.03],
     [1.,   8,  0,    0,    0, 0.00, 0.0,   0,   0,  0.0,    2],
-    [1.,   3,  0,    0,    0, 0.00, 0.0, 400,   0,  0.0,    0],
-    [1.,   0,  0,  330,    0, 0.00, 0.0,   0,   0,  0.0,    0],
+    [1.,   3,  0,    0,    0, 0.00, 0.0, 400,   0,  0.0,    0], # Seealgenmehl
+    [1.,   0,  0,  330,    0, 0.00, 0.0,   0,   0,  0.0,    0], # Eierschale
+
+    #   g,kcal, Pr,   Ca,   P,   Cu,  Zn, Jod, A,   D,   E
     [1.,   0,  0,    0,    0, 0.00, 1000.0,   0,   0,  0.0,    0],
     [1.,   0,  0,    0,    0, 1000.00, 0.0,   0,   0,  0.0,    0],
+
+    #   g,kcal, Pr,   Ca,   P,   Cu,  Zn, Jod, A,   D,   E
+    # Rinderleber
+    [100, 132, 19.2, 6, 351, 3.195, 4.616, 14, 59667, 68, 0.75],
+    # Rinderlunge
+    [100, 94, 17.4, 12, 224, 0.260, 1.610, 6, 183.3, 0, 0.5],
+    # Rinderniere
+    [100, 96, 15.7, 11, 248, 0.434, 2.082, 4.2, 1100, 40, 0.298],
+    # Rindermilz
+    [100, 96, 18.6, 7, 296, 0.168, 2.11, 4.0, 316.7, 0, 0.3],
+    # Rote_Beete
+    [100, 42, 1.5, 29, 45, 0.08, 0.344, 0.4, 6.7, 0, 0.047],
+    # Pastinake
+    [100, 59, 1.3, 47, 82, 0.14, 0.85, 3.6, 10, 0, 0.88],
 ], dtype=np.float64)
 
 #
@@ -121,23 +143,66 @@ def get_variable(name):
 # g_day = values_targets[0]
 
 # g[get_index("Rind_Muskel_fettfrei")] = 0.551 * g_day
-# g[get_index("Rinderbrustbein")] = 0.118 * g_day
-# g[get_index("Süßkartoffel")] = 0.111 * g_day
+# # XXX Nährstoffe Rinderbrustbein
+# # g[get_index("Rinderbrustbein")] = 0.118 * g_day
+# g[get_index("Rind_Beinscheibe")] = 0.118 * g_day
+# # g[get_index("Süßkartoffel")] = 0.111 * g_day
 # g[get_index("Rinderleber")] = 0.047 * g_day
-# g[get_index("Spinat")] = 0.037 * g_day
-# g[get_index("Heidelbeere")] = 0.020 * g_day
+# # g[get_index("Spinat")] = 0.037 * g_day
+# # g[get_index("Heidelbeere")] = 0.020 * g_day
 # g[get_index("Rinderherz")] = 0.018 * g_day
 # g[get_index("Rinderlunge")] = 0.018 * g_day
 # g[get_index("Rindermilz")] = 0.018 * g_day
 # g[get_index("Rinderniere")] = 0.018 * g_day
 # g[get_index("Apfel")] = 0.015 * g_day
-# g[get_index("Birne")] = 0.015 * g_day
+# # g[get_index("Birne")] = 0.015 * g_day
 # g[get_index("Leinöl")] = 0.004 * g_day
 # g[get_index("Dorschlebertran")] = 0.003 * g_day
-# g[get_index("Algenkalk")] = 0.003 * g_day
+# # g[get_index("Algenkalk")] = 0.003 * g_day
 # g[get_index("Lachsöl")] = 0.003 * g_day
-# g[get_index("Kokosraspeln")] = 0.003 * g_day
+# # g[get_index("Kokosraspeln")] = 0.003 * g_day
 # g[get_index("Seealgenmehl")] = 0.001 * g_day
+
+# PURUS - Rind Menü Nuggets, Gefroren 800G
+# https://www.lico-nature.de/hund/b-a-r-f/purus-alleinfuttermittel/purus-rind-menue-nuggets-gefroren-800g.html
+
+# g = np.zeros((n_ingredients,))
+# g_day = values_targets[0]
+
+# g[get_index("Rind_Muskel_fettfrei")] = 0.39 * g_day
+# g[get_index("Rinderherz")] = 0.15 * g_day
+# g[get_index("Rinderleber")] = 0.06 * g_day
+# g[get_index("Rinderlunge")] = 0.02 * g_day
+# g[get_index("Rinderniere")] = 0.02 * g_day
+# g[get_index("Rindermilz")] = 0.02 * g_day
+# g[get_index("Rind_Beinscheibe")] = 0.13 * g_day
+# g[get_index("Kartoffel")] = 0.07 * g_day
+# g[get_index("Pastinake")] = 0.03 * g_day
+# g[get_index("Möhre")] = 0.03 * g_day
+# g[get_index("Apfel")] = 0.03 * g_day
+# g[get_index("Rote_Beete")] = 0.03 * g_day
+# g[get_index("Lachsöl")] = 0.01 * g_day
+
+for name, abs, rel in zip(
+        values_names,
+        ingredients_values.T @ g,
+        ingredients_values_normalized.T @ g,
+        strict=True
+):
+    print(f"{name:20s}: {abs:8.3f}g ({100*rel:5.2f}%)")
+
+# print(values_names)
+# print("PURUS abs", ingredients_values.T @ g)
+# print("PURUS rel", ingredients_values_normalized.T @ g)
+
+breakpoint()
+
+#
+
+
+#
+# Objective Function
+#
 
 
 # Simply minimize sum of g
